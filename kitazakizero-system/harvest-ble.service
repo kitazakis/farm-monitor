@@ -1,0 +1,21 @@
+[Unit]
+Description=INKBIRD ITH-11-B BLE Harvest uploader
+Wants=bluetooth.service network-online.target
+After=bluetooth.service network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+Environment=PYTHONUNBUFFERED=1
+Environment=ITH11B_MACS=49:25:10:25:03:1D
+Environment=ITH11B_PUBLISH_INTERVAL_SECONDS=1200
+ExecStartPre=+/bin/sh -c 'echo 0 > /sys/class/rfkill/rfkill0/soft 2>/dev/null || true; /usr/bin/bluetoothctl power on || true'
+ExecStart=/usr/bin/python3 /home/pi/harvest_ble.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/pi/logs/harvest_ble.log
+StandardError=append:/home/pi/logs/harvest_ble.log
+
+[Install]
+WantedBy=multi-user.target

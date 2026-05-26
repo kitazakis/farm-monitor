@@ -1,0 +1,29 @@
+# SSH keys and local credentials
+codex_raspberry_ed25519
+codex_raspberry_ed25519.pub
+*.pem
+*.key
+
+# Local Python artifacts
+__pycache__/
+*.py[cod]
+
+# Copied Raspberry Pi runtime logs and generated incident bundles
+kitazakizero-home/logs/*
+!kitazakizero-home/logs/
+!kitazakizero-home/logs/*.sh
+kitazakizero-system/incident_*/
+
+# Large or operationally generated Pi data
+kitazakizero-home/archive_*/
+kitazakizero-home/BME280/photo/
+kitazakizero-home/BME280/*.csv
+kitazakizero-home/.cache/
+kitazakizero-home/.config/
+kitazakizero-home/.local/
+kitazakizero-home/.ssh/
+kitazakizero-home/.Xauthority
+kitazakizero-home/.bash_history
+kitazakizero-home/.lesshst
+kitazakizero-home/.sudo_as_admin_successful
+kitazakizero-home/.xsession-errors*
