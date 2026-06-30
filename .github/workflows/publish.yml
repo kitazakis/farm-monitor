@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p _site/data _site/images
           cp -R docs/. _site/
-          cp data/latest.json data/ith11b_log.csv _site/data/
+          cp data/ith11b_log.csv _site/data/
           if [ -f images/latest.jpg ]; then
             cp images/latest.jpg _site/images/latest.jpg
           fi
