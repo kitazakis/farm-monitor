@@ -1,0 +1,63 @@
+name: Sync observation data to main
+
+on:
+  push:
+    branches:
+      - data
+    paths:
+      - current/**
+      - logs/**
+      - images/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-observation-data
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data-branch
+
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-branch
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy observation data into Pages source
+        run: |
+          rm -rf main-branch/docs/data
+          mkdir -p main-branch/docs/data
+          cp -R data-branch/current main-branch/docs/data/
+          cp -R data-branch/logs main-branch/docs/data/
+          if [ -f data-branch/images/latest.jpg ]; then
+            mkdir -p main-branch/docs/data/images
+            cp data-branch/images/latest.jpg main-branch/docs/data/images/latest.jpg
+          fi
+          cat > main-branch/docs/data/README.md <<'EOF'
+          This directory is generated from the data branch by GitHub Actions.
+          Do not edit files under docs/data on main manually.
+          EOF
+
+      - name: Commit synced data
+        run: |
+          cd main-branch
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- docs/data; then
+            echo "No observation data changes to sync."
+            exit 0
+          fi
+          git add docs/data
+          git commit -m "Sync observation data from data branch"
+          git push origin main
