@@ -1,13 +1,17 @@
 {
-  "timestamp": "2026-06-30T08:30:00+09:00",
-  "temperature_c": 27.4,
-  "humidity_percent": 71,
-  "battery_percent": 88,
-  "rssi_dbm": -63,
+  "timestamp": "2026-06-30T23:00:00+09:00",
+  "temperature_c": 24.7,
+  "humidity_percent": 80,
+  "battery_percent": 85,
+  "rssi_dbm": -68,
   "image_timestamp": "2026-06-30T08:25:00+09:00",
   "device": {
     "id": "ith11b-sample-001",
     "type": "INKBIRD ITH-11-B",
     "location": "greenhouse-a"
+  },
+  "source": {
+    "file": "data/ith11b_log.csv",
+    "row": "latest"
   }
 }
