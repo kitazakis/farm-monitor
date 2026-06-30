@@ -1,10 +1,19 @@
 # Farm Monitor
 
-農業IoT向けの定点観測ダッシュボードです。GitHub Pagesで公開し、ブラウザから最新の観測値、最新画像、温度・湿度・通信状態・バッテリー推移を確認できます。
+Raspberry Piによる農業IoT定点観測システムのWebダッシュボードです。GitHub Pagesで公開し、ブラウザから温湿度計の最新値、推移グラフ、最新画像を確認できます。
 
 公開URL:
 
 https://kitazakis.github.io/farm-monitor/
+
+## 方針
+
+GitHub Pages側では、Raspberry PiからPushされた実データをそのまま読み込みます。ラズパイ側は次の2ファイルを更新してGitHubへPushするだけで、画面表示が更新されます。
+
+- `data/ith11b_log.csv`
+- `images/latest.jpg`
+
+`latest.json` などの中間JSONは使用しません。
 
 ## 構成
 
@@ -14,7 +23,6 @@ docs/
   style.css
   app.js
 data/
-  latest.json
   ith11b_log.csv
 images/
   latest.jpg
@@ -26,39 +34,37 @@ README.md
 
 ## 表示内容
 
-- 現在の観測値: 温度、湿度、バッテリー残量、RSSI、更新日時
+- 現在の観測値: CSV最新行から温度、湿度、バッテリー残量、RSSI、更新日時を表示
 - 最新画像: `images/latest.jpg`
-- グラフ: `data/ith11b_log.csv` から温度、湿度、バッテリー残量、RSSIを表示
+- グラフ: CSV全体から温度、湿度、バッテリー残量、RSSIの推移を表示
 
 画像が存在しない場合、画面には `No Image` と表示されます。
 
-## データ形式
+## CSV形式
 
-`data/latest.json`
-
-```json
-{
-  "timestamp": "2026-06-30T08:30:00+09:00",
-  "temperature_c": 27.4,
-  "humidity_percent": 71,
-  "battery_percent": 88,
-  "rssi_dbm": -63,
-  "image_timestamp": "2026-06-30T08:25:00+09:00"
-}
-```
-
-`data/ith11b_log.csv`
+Raspberry Piが保存する `data/ith11b_log.csv` は次の形式です。
 
 ```csv
-timestamp,temperature_c,humidity_percent,battery_percent,rssi_dbm
-2026-06-30T08:00:00+09:00,27.4,71,88,-63
+timestamp,temperature,humidity,battery,rssi
+2026-06-15 15:56:51,24.8,46.3,100,-26
+2026-06-15 15:57:29,24.7,46.5,100,-27
 ```
 
-将来、土壌水分、EC、pH、照度などを追加する場合は、CSV列と `docs/app.js` の `METRICS` または `CHART_FIELDS` に項目を追加してください。
+`docs/app.js` はこのCSVを直接読み込み、最後のデータ行を現在値として扱います。過去データはすべてグラフに反映されます。
+
+## 拡張
+
+将来、照度、土壌水分、EC、pHなどを追加する場合は、CSVに列を追加し、`docs/app.js` の次の定義に項目を追加します。
+
+- `FIELD_ALIASES`: CSV列名と画面内部キーの対応
+- `METRICS`: 現在値カードに表示する項目
+- `CHART_FIELDS`: グラフに表示する項目
+
+この構成により、ラズパイ側のCSV出力を増やすだけで表示項目を拡張しやすくしています。
 
 ## GitHub Pages
 
-`.github/workflows/publish.yml` は `main` ブランチへのPush時に実行されます。`docs/` を公開ルートへ配置し、`data/` と `images/` を同じ公開ルートへコピーしてからGitHub Pagesへデプロイします。
+`.github/workflows/publish.yml` は `main` ブランチへのPush時に実行されます。`docs/` を公開ルートへ配置し、`data/ith11b_log.csv` と `images/latest.jpg` を同じ公開ルートへコピーしてGitHub Pagesへデプロイします。
 
 GitHub側では、PagesのSourceをGitHub Actionsに設定してください。
 
