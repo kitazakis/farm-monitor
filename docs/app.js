@@ -1,33 +1,40 @@
 const PATH_CANDIDATES = {
-  latest: ["data/latest.json", "../data/latest.json"],
   log: ["data/ith11b_log.csv", "../data/ith11b_log.csv"],
   image: ["images/latest.jpg", "../images/latest.jpg"],
 };
 
+const FIELD_ALIASES = {
+  timestamp: ["timestamp", "datetime", "date_time", "time"],
+  temperature: ["temperature", "temperature_c", "temp", "temp_c"],
+  humidity: ["humidity", "humidity_percent", "rh"],
+  battery: ["battery", "battery_percent", "battery_level"],
+  rssi: ["rssi", "rssi_dbm"],
+};
+
 const METRICS = [
   {
-    key: "temperature_c",
+    key: "temperature",
     label: "温度",
     unit: "degC",
-    note: "ITH-11B",
+    note: "INKBIRD ITH-11-B",
     format: (value) => formatNumber(value, 1),
   },
   {
-    key: "humidity_percent",
+    key: "humidity",
     label: "湿度",
     unit: "%",
     note: "相対湿度",
-    format: (value) => formatNumber(value, 0),
+    format: (value) => formatNumber(value, 1),
   },
   {
-    key: "battery_percent",
+    key: "battery",
     label: "バッテリー",
     unit: "%",
     note: "センサー電池",
     format: (value) => formatNumber(value, 0),
   },
   {
-    key: "rssi_dbm",
+    key: "rssi",
     label: "RSSI",
     unit: "dBm",
     note: "BLE受信強度",
@@ -37,7 +44,7 @@ const METRICS = [
     key: "timestamp",
     label: "更新日時",
     unit: "",
-    note: "最新データ",
+    note: "CSV最新行",
     format: (value) => formatDateTime(value),
   },
 ];
@@ -45,14 +52,14 @@ const METRICS = [
 const CHART_FIELDS = {
   environment: [
     {
-      key: "temperature_c",
+      key: "temperature",
       label: "温度 (degC)",
       borderColor: "#b86b16",
       backgroundColor: "rgba(184, 107, 22, 0.12)",
       yAxisID: "y",
     },
     {
-      key: "humidity_percent",
+      key: "humidity",
       label: "湿度 (%)",
       borderColor: "#2f6f9f",
       backgroundColor: "rgba(47, 111, 159, 0.12)",
@@ -61,14 +68,14 @@ const CHART_FIELDS = {
   ],
   health: [
     {
-      key: "battery_percent",
+      key: "battery",
       label: "バッテリー (%)",
       borderColor: "#2f7d46",
       backgroundColor: "rgba(47, 125, 70, 0.12)",
       yAxisID: "y",
     },
     {
-      key: "rssi_dbm",
+      key: "rssi",
       label: "RSSI (dBm)",
       borderColor: "#5f6673",
       backgroundColor: "rgba(95, 102, 115, 0.12)",
@@ -85,23 +92,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   renderMetricCards({});
-  await Promise.all([loadLatest(), loadLog(), loadLatestImage()]);
-}
-
-async function loadLatest() {
-  try {
-    const latest = await fetchJson(PATH_CANDIDATES.latest);
-    renderMetricCards(latest);
-    setText("lastUpdated", `更新日時: ${formatDateTime(latest.timestamp)}`);
-    setText("dataStatus", "データ更新済み");
-    document.getElementById("dataStatus").classList.remove("error");
-
-    if (latest.image_timestamp) {
-      setText("imageTimestamp", formatDateTime(latest.image_timestamp));
-    }
-  } catch (error) {
-    setStatusError("latest.json を読み込めません");
-  }
+  await Promise.all([loadLog(), loadLatestImage()]);
 }
 
 async function loadLog() {
@@ -110,10 +101,19 @@ async function loadLog() {
     const rows = parseCsv(csv).map(normalizeRow).filter((row) => row.timestamp);
 
     if (!rows.length) {
+      renderMetricCards({});
       renderEmptyChart("environmentChart", "CSVデータがありません");
       renderEmptyChart("healthChart", "CSVデータがありません");
+      setStatusError("CSVデータがありません");
+      setText("lastUpdated", "更新日時: --");
       return;
     }
+
+    const latest = rows[rows.length - 1];
+    renderMetricCards(latest);
+    setText("lastUpdated", `更新日時: ${formatDateTime(latest.timestamp)}`);
+    setText("dataStatus", "CSV更新済み");
+    document.getElementById("dataStatus").classList.remove("error");
 
     renderLineChart("environmentChart", rows, CHART_FIELDS.environment, {
       leftTitle: "温度 (degC)",
@@ -124,9 +124,11 @@ async function loadLog() {
       rightTitle: "RSSI (dBm)",
     });
   } catch (error) {
+    renderMetricCards({});
     renderEmptyChart("environmentChart", "CSVを読み込めません");
     renderEmptyChart("healthChart", "CSVを読み込めません");
     setStatusError("CSVを読み込めません");
+    setText("lastUpdated", "更新日時: --");
   }
 }
 
@@ -304,7 +306,7 @@ function parseCsv(csv) {
   }
 
   const [header = [], ...body] = rows;
-  const keys = header.map((key) => key.trim());
+  const keys = header.map((key) => key.trim().toLowerCase());
   return body.map((values) => Object.fromEntries(
     keys.map((key, index) => [key, (values[index] || "").trim()])
   ));
@@ -312,17 +314,12 @@ function parseCsv(csv) {
 
 function normalizeRow(row) {
   return {
-    timestamp: row.timestamp,
-    temperature_c: toNumber(row.temperature_c),
-    humidity_percent: toNumber(row.humidity_percent),
-    battery_percent: toNumber(row.battery_percent),
-    rssi_dbm: toNumber(row.rssi_dbm),
+    timestamp: getField(row, FIELD_ALIASES.timestamp),
+    temperature: toNumber(getField(row, FIELD_ALIASES.temperature)),
+    humidity: toNumber(getField(row, FIELD_ALIASES.humidity)),
+    battery: toNumber(getField(row, FIELD_ALIASES.battery)),
+    rssi: toNumber(getField(row, FIELD_ALIASES.rssi)),
   };
-}
-
-async function fetchJson(candidates) {
-  const text = await fetchText(candidates);
-  return JSON.parse(text);
 }
 
 async function fetchText(candidates) {
@@ -366,6 +363,15 @@ function findLoadableImage(candidates) {
   });
 }
 
+function getField(row, names) {
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(row, name)) {
+      return row[name];
+    }
+  }
+  return "";
+}
+
 function formatNumber(value, digits) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -382,9 +388,19 @@ function toNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function parseTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = String(value).trim().replace(" ", "T");
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatDateTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseTimestamp(value);
+  if (!date) {
     return String(value || "--");
   }
 
@@ -394,12 +410,13 @@ function formatDateTime(value) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
   }).format(date);
 }
 
 function formatShortTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseTimestamp(value);
+  if (!date) {
     return value;
   }
 
