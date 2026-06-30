@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - docs/**
+      - .github/workflows/publish.yml
   workflow_dispatch:
 
 permissions:
@@ -28,19 +31,10 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Prepare site
-        run: |
-          mkdir -p _site/data _site/images
-          cp -R docs/. _site/
-          cp data/ith11b_log.csv _site/data/
-          if [ -f images/latest.jpg ]; then
-            cp images/latest.jpg _site/images/latest.jpg
-          fi
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: docs
 
       - name: Deploy to GitHub Pages
         id: deployment

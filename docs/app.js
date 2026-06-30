@@ -1,172 +1,141 @@
-const PATH_CANDIDATES = {
-  log: ["data/ith11b_log.csv", "../data/ith11b_log.csv"],
-  image: ["images/latest.jpg", "../images/latest.jpg"],
+const DATA_ROOT = "data";
+const PATHS = {
+  latest: `${DATA_ROOT}/current/latest.json`,
+  image: `${DATA_ROOT}/images/latest.jpg`,
 };
 
-const FIELD_ALIASES = {
-  timestamp: ["timestamp", "datetime", "date_time", "time"],
-  temperature: ["temperature", "temperature_c", "temp", "temp_c"],
-  humidity: ["humidity", "humidity_percent", "rh"],
-  battery: ["battery", "battery_percent", "battery_level"],
-  rssi: ["rssi", "rssi_dbm"],
+const FIELD_DEFINITIONS = {
+  temperature: { label: "温度", unit: "degC", digits: 1, color: "#b86b16", note: "INKBIRD ITH-11-B" },
+  humidity: { label: "湿度", unit: "%", digits: 1, color: "#2f6f9f", note: "相対湿度" },
+  battery: { label: "Battery", unit: "%", digits: 0, color: "#2f7d46", note: "センサー電池" },
+  rssi: { label: "RSSI", unit: "dBm", digits: 0, color: "#5f6673", note: "BLE受信強度" },
+  illuminance: { label: "照度", unit: "lx", digits: 0, color: "#c69214", note: "追加センサー" },
+  soil_moisture: { label: "土壌水分", unit: "%", digits: 1, color: "#7b6f36", note: "追加センサー" },
+  ec: { label: "EC", unit: "mS/cm", digits: 2, color: "#7a5ca8", note: "追加センサー" },
+  ph: { label: "pH", unit: "", digits: 2, color: "#b7554f", note: "追加センサー" },
+  pressure: { label: "気圧", unit: "hPa", digits: 1, color: "#64748b", note: "追加センサー" },
+  rainfall: { label: "雨量", unit: "mm", digits: 1, color: "#2563eb", note: "追加センサー" },
 };
 
-const METRICS = [
-  {
-    key: "temperature",
-    label: "温度",
-    unit: "degC",
-    note: "INKBIRD ITH-11-B",
-    format: (value) => formatNumber(value, 1),
-  },
-  {
-    key: "humidity",
-    label: "湿度",
-    unit: "%",
-    note: "相対湿度",
-    format: (value) => formatNumber(value, 1),
-  },
-  {
-    key: "battery",
-    label: "バッテリー",
-    unit: "%",
-    note: "センサー電池",
-    format: (value) => formatNumber(value, 0),
-  },
-  {
-    key: "rssi",
-    label: "RSSI",
-    unit: "dBm",
-    note: "BLE受信強度",
-    format: (value) => formatNumber(value, 0),
-  },
-  {
-    key: "timestamp",
-    label: "更新日時",
-    unit: "",
-    note: "CSV最新行",
-    format: (value) => formatDateTime(value),
-  },
-];
+const PRIMARY_METRICS = ["temperature", "humidity", "battery", "rssi", "timestamp"];
+const ENVIRONMENT_FIELDS = ["temperature", "humidity"];
+const HEALTH_FIELDS = ["battery", "rssi"];
 
-const CHART_FIELDS = {
-  environment: [
-    {
-      key: "temperature",
-      label: "温度 (degC)",
-      borderColor: "#b86b16",
-      backgroundColor: "rgba(184, 107, 22, 0.12)",
-      yAxisID: "y",
-    },
-    {
-      key: "humidity",
-      label: "湿度 (%)",
-      borderColor: "#2f6f9f",
-      backgroundColor: "rgba(47, 111, 159, 0.12)",
-      yAxisID: "y1",
-    },
-  ],
-  health: [
-    {
-      key: "battery",
-      label: "バッテリー (%)",
-      borderColor: "#2f7d46",
-      backgroundColor: "rgba(47, 125, 70, 0.12)",
-      yAxisID: "y",
-    },
-    {
-      key: "rssi",
-      label: "RSSI (dBm)",
-      borderColor: "#5f6673",
-      backgroundColor: "rgba(95, 102, 115, 0.12)",
-      yAxisID: "y1",
-    },
-  ],
-};
-
-const state = {
-  charts: {},
-};
+const state = { charts: {} };
 
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   renderMetricCards({});
-  await Promise.all([loadLog(), loadLatestImage()]);
+
+  try {
+    const latest = await fetchJson(PATHS.latest);
+    renderLatest(latest);
+    await Promise.all([loadMonthlyLog(latest), loadLatestImage()]);
+    setStatus("データ更新済み");
+  } catch (error) {
+    setStatus("データを読み込めません", true);
+    setText("lastUpdated", "更新日時: --");
+    renderEmptyChart("environmentChart", "データを読み込めません");
+    renderEmptyChart("healthChart", "データを読み込めません");
+    document.getElementById("latestImage").hidden = true;
+    document.getElementById("noImage").hidden = false;
+  }
 }
 
-async function loadLog() {
-  try {
-    const csv = await fetchText(PATH_CANDIDATES.log);
-    const rows = parseCsv(csv).map(normalizeRow).filter((row) => row.timestamp);
+function renderLatest(latest) {
+  renderMetricCards(latest);
+  setText("lastUpdated", `更新日時: ${formatDateTime(latest.timestamp)}`);
+}
 
-    if (!rows.length) {
-      renderMetricCards({});
-      renderEmptyChart("environmentChart", "CSVデータがありません");
-      renderEmptyChart("healthChart", "CSVデータがありません");
-      setStatusError("CSVデータがありません");
-      setText("lastUpdated", "更新日時: --");
-      return;
-    }
+async function loadMonthlyLog(latest) {
+  const logPath = latest.log_path || buildMonthlyLogPath(latest.timestamp);
+  setText("environmentSource", logPath || "月次CSV");
 
-    const latest = rows[rows.length - 1];
-    renderMetricCards(latest);
-    setText("lastUpdated", `更新日時: ${formatDateTime(latest.timestamp)}`);
-    setText("dataStatus", "CSV更新済み");
-    document.getElementById("dataStatus").classList.remove("error");
+  if (!logPath) {
+    renderEmptyChart("environmentChart", "CSVパスを判定できません");
+    renderEmptyChart("healthChart", "CSVパスを判定できません");
+    return;
+  }
 
-    renderLineChart("environmentChart", rows, CHART_FIELDS.environment, {
-      leftTitle: "温度 (degC)",
-      rightTitle: "湿度 (%)",
+  const csv = await fetchText(`${DATA_ROOT}/${logPath}`);
+  const rows = parseCsv(csv).map(normalizeRow).filter((row) => row.timestamp);
+
+  if (!rows.length) {
+    renderEmptyChart("environmentChart", "CSVデータがありません");
+    renderEmptyChart("healthChart", "CSVデータがありません");
+    return;
+  }
+
+  renderLineChart("environmentChart", rows, ENVIRONMENT_FIELDS, {
+    leftTitle: "温度 (degC)",
+    rightTitle: "湿度 (%)",
+  });
+
+  renderLineChart("healthChart", rows, HEALTH_FIELDS, {
+    leftTitle: "Battery (%)",
+    rightTitle: "RSSI (dBm)",
+  });
+
+  const extraFields = Object.keys(FIELD_DEFINITIONS).filter((key) => {
+    return !ENVIRONMENT_FIELDS.includes(key) && !HEALTH_FIELDS.includes(key) && rows.some((row) => row[key] !== null);
+  });
+
+  if (extraFields.length) {
+    document.getElementById("extraPanel").hidden = false;
+    renderLineChart("extraChart", rows, extraFields, {
+      leftTitle: "追加センサー",
+      rightTitle: "",
     });
-    renderLineChart("healthChart", rows, CHART_FIELDS.health, {
-      leftTitle: "バッテリー (%)",
-      rightTitle: "RSSI (dBm)",
-    });
-  } catch (error) {
-    renderMetricCards({});
-    renderEmptyChart("environmentChart", "CSVを読み込めません");
-    renderEmptyChart("healthChart", "CSVを読み込めません");
-    setStatusError("CSVを読み込めません");
-    setText("lastUpdated", "更新日時: --");
   }
 }
 
 async function loadLatestImage() {
   const image = document.getElementById("latestImage");
   const noImage = document.getElementById("noImage");
-  const src = await findLoadableImage(PATH_CANDIDATES.image);
 
-  if (!src) {
+  try {
+    await testImage(PATHS.image);
+    image.src = `${PATHS.image}?v=${Date.now()}`;
+    image.hidden = false;
+    noImage.hidden = true;
+  } catch (error) {
     image.hidden = true;
     noImage.hidden = false;
-    return;
   }
-
-  image.src = `${src}?v=${Date.now()}`;
-  image.hidden = false;
-  noImage.hidden = true;
 }
 
 function renderMetricCards(latest) {
   const grid = document.getElementById("metricGrid");
-  grid.innerHTML = METRICS.map((metric) => {
-    const rawValue = latest[metric.key];
-    const value = rawValue === undefined || rawValue === null || rawValue === ""
-      ? "--"
-      : metric.format(rawValue);
+  const additional = Object.keys(FIELD_DEFINITIONS).filter((key) => {
+    return !PRIMARY_METRICS.includes(key) && latest[key] !== undefined && latest[key] !== null && latest[key] !== "";
+  });
+  const metrics = [...PRIMARY_METRICS, ...additional];
 
-    return `
-      <article class="metric-card">
-        <span class="metric-label">${metric.label}</span>
-        <div class="metric-value">
-          <span>${value}</span>
-          ${metric.unit ? `<span class="metric-unit">${metric.unit}</span>` : ""}
-        </div>
-        <p class="metric-note">${metric.note}</p>
-      </article>
-    `;
+  grid.innerHTML = metrics.map((key) => {
+    if (key === "timestamp") {
+      return metricCard("更新日時", formatDateTime(latest.timestamp), "", "latest.json 最新値");
+    }
+
+    const def = FIELD_DEFINITIONS[key] || { label: key, unit: "", digits: 1, note: "追加データ" };
+    const value = latest[key] === undefined || latest[key] === null || latest[key] === ""
+      ? "--"
+      : formatNumber(latest[key], def.digits);
+    return metricCard(def.label, value, def.unit, def.note);
   }).join("");
+}
+
+function metricCard(label, value, unit, note) {
+  return `
+    <article class="metric-card">
+      <span class="metric-label">${escapeHtml(label)}</span>
+      <div class="metric-value">
+        <span>${escapeHtml(value)}</span>
+        ${unit ? `<span class="metric-unit">${escapeHtml(unit)}</span>` : ""}
+      </div>
+      <p class="metric-note">${escapeHtml(note)}</p>
+    </article>
+  `;
 }
 
 function renderLineChart(canvasId, rows, fields, axisTitles) {
@@ -176,23 +145,28 @@ function renderLineChart(canvasId, rows, fields, axisTitles) {
   }
 
   const canvas = document.getElementById(canvasId);
-  const labels = rows.map((row) => formatShortTime(row.timestamp));
-  const datasets = fields.map((field) => ({
-    label: field.label,
-    data: rows.map((row) => row[field.key]),
-    borderColor: field.borderColor,
-    backgroundColor: field.backgroundColor,
-    yAxisID: field.yAxisID,
-    borderWidth: 2,
-    pointRadius: rows.length > 48 ? 0 : 2.5,
-    pointHoverRadius: 5,
-    tension: 0.25,
-    spanGaps: true,
-  }));
+  canvas.hidden = false;
+  const empty = canvas.parentElement.querySelector(".empty-state");
+  if (empty) empty.remove();
 
-  if (state.charts[canvasId]) {
-    state.charts[canvasId].destroy();
-  }
+  const labels = rows.map((row) => formatShortTime(row.timestamp));
+  const datasets = fields.map((key, index) => {
+    const def = FIELD_DEFINITIONS[key] || { label: key, unit: "", color: defaultColor(index) };
+    return {
+      label: def.unit ? `${def.label} (${def.unit})` : def.label,
+      data: rows.map((row) => row[key]),
+      borderColor: def.color || defaultColor(index),
+      backgroundColor: transparent(def.color || defaultColor(index)),
+      yAxisID: index === 1 ? "y1" : "y",
+      borderWidth: 2,
+      pointRadius: rows.length > 48 ? 0 : 2.5,
+      pointHoverRadius: 5,
+      tension: 0.25,
+      spanGaps: true,
+    };
+  });
+
+  if (state.charts[canvasId]) state.charts[canvasId].destroy();
 
   state.charts[canvasId] = new Chart(canvas, {
     type: "line",
@@ -200,51 +174,27 @@ function renderLineChart(canvasId, rows, fields, axisTitles) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: {
-        intersect: false,
-        mode: "index",
-      },
+      interaction: { intersect: false, mode: "index" },
       plugins: {
-        legend: {
-          labels: {
-            boxWidth: 14,
-            color: "#17211b",
-            usePointStyle: true,
-          },
-        },
-        tooltip: {
-          callbacks: {
-            title: (items) => rows[items[0].dataIndex]?.timestamp || "",
-          },
-        },
+        legend: { labels: { boxWidth: 14, color: "#17211b", usePointStyle: true } },
+        tooltip: { callbacks: { title: (items) => rows[items[0].dataIndex]?.timestamp || "" } },
       },
       scales: {
         x: {
           grid: { display: false },
-          ticks: {
-            color: "#66736a",
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 8,
-          },
+          ticks: { color: "#66736a", maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
         },
         y: {
           beginAtZero: false,
           position: "left",
-          title: {
-            display: true,
-            text: axisTitles.leftTitle,
-          },
+          title: { display: true, text: axisTitles.leftTitle },
           ticks: { color: "#66736a" },
           grid: { color: "#edf2ed" },
         },
         y1: {
           beginAtZero: false,
           position: "right",
-          title: {
-            display: true,
-            text: axisTitles.rightTitle,
-          },
+          title: { display: Boolean(axisTitles.rightTitle), text: axisTitles.rightTitle },
           ticks: { color: "#66736a" },
           grid: { drawOnChartArea: false },
         },
@@ -286,13 +236,9 @@ function parseCsv(csv) {
       row.push(field);
       field = "";
     } else if ((char === "\n" || char === "\r") && !inQuotes) {
-      if (char === "\r" && next === "\n") {
-        index += 1;
-      }
+      if (char === "\r" && next === "\n") index += 1;
       row.push(field);
-      if (row.some((value) => value.trim() !== "")) {
-        rows.push(row);
-      }
+      if (row.some((value) => value.trim() !== "")) rows.push(row);
       row = [];
       field = "";
     } else {
@@ -306,81 +252,53 @@ function parseCsv(csv) {
   }
 
   const [header = [], ...body] = rows;
-  const keys = header.map((key) => key.trim().toLowerCase());
-  return body.map((values) => Object.fromEntries(
-    keys.map((key, index) => [key, (values[index] || "").trim()])
-  ));
+  const keys = header.map((key) => key.trim());
+  return body.map((values) => Object.fromEntries(keys.map((key, index) => [key, (values[index] || "").trim()])));
 }
 
 function normalizeRow(row) {
-  return {
-    timestamp: getField(row, FIELD_ALIASES.timestamp),
-    temperature: toNumber(getField(row, FIELD_ALIASES.temperature)),
-    humidity: toNumber(getField(row, FIELD_ALIASES.humidity)),
-    battery: toNumber(getField(row, FIELD_ALIASES.battery)),
-    rssi: toNumber(getField(row, FIELD_ALIASES.rssi)),
-  };
-}
-
-async function fetchText(candidates) {
-  let lastError;
-
-  for (const path of candidates) {
-    try {
-      const response = await fetch(path, { cache: "no-store" });
-      if (response.ok) {
-        return response.text();
-      }
-      lastError = new Error(`${path}: ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError || new Error("Fetch failed");
-}
-
-function findLoadableImage(candidates) {
-  return new Promise((resolve) => {
-    let index = 0;
-
-    const tryNext = () => {
-      if (index >= candidates.length) {
-        resolve("");
-        return;
-      }
-
-      const src = candidates[index];
-      index += 1;
-
-      const image = new Image();
-      image.onload = () => resolve(src);
-      image.onerror = tryNext;
-      image.src = `${src}?v=${Date.now()}`;
-    };
-
-    tryNext();
+  const normalized = { timestamp: row.timestamp || "" };
+  Object.keys(row).forEach((key) => {
+    if (key !== "timestamp") normalized[key] = toNumber(row[key]);
   });
+  return normalized;
 }
 
-function getField(row, names) {
-  for (const name of names) {
-    if (Object.prototype.hasOwnProperty.call(row, name)) {
-      return row[name];
-    }
-  }
-  return "";
+function buildMonthlyLogPath(timestamp) {
+  const parts = parseTimestampParts(timestamp);
+  if (!parts) return "";
+  return `logs/${parts.year}/${parts.month}/ith11b_${parts.year}-${parts.month}.csv`;
+}
+
+function parseTimestampParts(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-/);
+  return match ? { year: match[1], month: match[2] } : null;
+}
+
+async function fetchJson(path) {
+  const text = await fetchText(path);
+  return JSON.parse(text);
+}
+
+async function fetchText(path) {
+  const response = await fetch(`${path}?v=${Date.now()}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`${path}: ${response.status}`);
+  return response.text();
+}
+
+function testImage(path) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = resolve;
+    image.onerror = reject;
+    image.src = `${path}?v=${Date.now()}`;
+  });
 }
 
 function formatNumber(value, digits) {
   const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return "--";
-  }
-  return new Intl.NumberFormat("ja-JP", {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  }).format(number);
+  if (!Number.isFinite(number)) return "--";
+  return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(number);
 }
 
 function toNumber(value) {
@@ -389,10 +307,7 @@ function toNumber(value) {
 }
 
 function parseTimestamp(value) {
-  if (!value) {
-    return null;
-  }
-
+  if (!value) return null;
   const normalized = String(value).trim().replace(" ", "T");
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -400,10 +315,7 @@ function parseTimestamp(value) {
 
 function formatDateTime(value) {
   const date = parseTimestamp(value);
-  if (!date) {
-    return String(value || "--");
-  }
-
+  if (!date) return String(value || "--");
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "2-digit",
@@ -416,24 +328,33 @@ function formatDateTime(value) {
 
 function formatShortTime(value) {
   const date = parseTimestamp(value);
-  if (!date) {
-    return value;
-  }
+  if (!date) return value;
+  return new Intl.DateTimeFormat("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
 
-  return new Intl.DateTimeFormat("ja-JP", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+function transparent(hex) {
+  const value = hex.replace("#", "");
+  const bigint = parseInt(value, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, 0.12)`;
+}
+
+function defaultColor(index) {
+  return ["#2f7d46", "#2f6f9f", "#b86b16", "#7a5ca8", "#b7554f"][index % 5];
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 }
 
 function setText(id, text) {
   document.getElementById(id).textContent = text;
 }
 
-function setStatusError(message) {
+function setStatus(message, isError = false) {
   const status = document.getElementById("dataStatus");
   status.textContent = message;
-  status.classList.add("error");
+  status.classList.toggle("error", isError);
 }

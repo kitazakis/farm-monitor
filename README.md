@@ -1,48 +1,82 @@
 # Farm Monitor
 
-Raspberry Piによる農業IoT定点観測システムのWebダッシュボードです。GitHub Pagesで公開し、ブラウザから温湿度計の最新値、推移グラフ、最新画像を確認できます。
+Raspberry Pi Zero 2 Wによる農業IoT定点観測システムのGitHub Pagesダッシュボードです。
 
 公開URL:
 
 https://kitazakis.github.io/farm-monitor/
 
-## 方針
+## 役割分担
 
-GitHub Pages側では、Raspberry PiからPushされた実データをそのまま読み込みます。ラズパイ側は次の2ファイルを更新してGitHubへPushするだけで、画面表示が更新されます。
+このリポジトリは、Webサイトと観測データをブランチで分離します。
 
-- `data/ith11b_log.csv`
-- `images/latest.jpg`
+- `main`: GitHub Pages用Webサイト専用
+- `data`: Raspberry PiがPushする観測データ専用
 
-`latest.json` などの中間JSONは使用しません。
+Raspberry Piは `main` を更新しません。Codexや人間がWebサイトを変更するときは `main` だけを更新します。
 
-## 構成
+## ブランチ構成
+
+### main
 
 ```text
 docs/
   index.html
   style.css
   app.js
-data/
-  ith11b_log.csv
+  data/                 # GitHub Actionsがdataブランチから自動生成
+.github/
+  workflows/
+    publish.yml
+    sync-data-to-main.yml
+README.md
+```
+
+`docs/data/` は手編集禁止です。`data` ブランチの内容をGitHub Actionsがコピーします。
+
+### data
+
+```text
+current/
+  latest.json
+logs/
+  2026/
+    06/
+      ith11b_2026-06.csv
 images/
   latest.jpg
 .github/
   workflows/
-    publish.yml
-README.md
+    sync-data-to-main.yml
 ```
 
-## 表示内容
+`data` ブランチにWebページのHTML/CSS/JavaScriptは置きません。`.github/workflows/sync-data-to-main.yml` は、`data` ブランチへのPushを検知するための同期専用workflowです。
 
-- 現在の観測値: CSV最新行から温度、湿度、バッテリー残量、RSSI、更新日時を表示
-- 最新画像: `images/latest.jpg`
-- グラフ: CSV全体から温度、湿度、バッテリー残量、RSSIの推移を表示
+## データ形式
 
-画像が存在しない場合、画面には `No Image` と表示されます。
+### latest.json
 
-## CSV形式
+`current/latest.json` は現在値表示に使います。
 
-Raspberry Piが保存する `data/ith11b_log.csv` は次の形式です。
+```json
+{
+  "timestamp": "2026-06-15 15:57:29",
+  "temperature": 24.7,
+  "humidity": 46.5,
+  "battery": 100,
+  "rssi": -27
+}
+```
+
+### 月次CSV
+
+CSVは月単位で保存します。
+
+```text
+logs/YYYY/MM/ith11b_YYYY-MM.csv
+```
+
+例:
 
 ```csv
 timestamp,temperature,humidity,battery,rssi
@@ -50,40 +84,84 @@ timestamp,temperature,humidity,battery,rssi
 2026-06-15 15:57:29,24.7,46.5,100,-27
 ```
 
-`docs/app.js` はこのCSVを直接読み込み、最後のデータ行を現在値として扱います。過去データはすべてグラフに反映されます。
+## 表示内容
 
-## 拡張
+GitHub Pagesは `docs/data/` のみを読みます。Raw GitHub URLには直接アクセスしません。
 
-将来、照度、土壌水分、EC、pHなどを追加する場合は、CSVに列を追加し、`docs/app.js` の次の定義に項目を追加します。
+- 現在の温度
+- 現在の湿度
+- Battery
+- RSSI
+- 更新日時
+- 最新画像
+- 温度推移
+- 湿度推移
+- RSSI推移
+- Battery推移
 
-- `FIELD_ALIASES`: CSV列名と画面内部キーの対応
-- `METRICS`: 現在値カードに表示する項目
-- `CHART_FIELDS`: グラフに表示する項目
+グラフはChart.jsで描画します。
 
-この構成により、ラズパイ側のCSV出力を増やすだけで表示項目を拡張しやすくしています。
+## GitHub Actions
 
-## GitHub Pages
+### dataブランチ更新時
 
-`.github/workflows/publish.yml` は `main` ブランチへのPush時に実行されます。`docs/` を公開ルートへ配置し、`data/ith11b_log.csv` と `images/latest.jpg` を同じ公開ルートへコピーしてGitHub Pagesへデプロイします。
-
-GitHub側では、PagesのSourceをGitHub Actionsに設定してください。
-
-## ローカル確認
-
-リポジトリ直下で簡易HTTPサーバーを起動します。
-
-```sh
-python3 -m http.server 8000
-```
-
-その後、ブラウザで次を開きます。
+`data` ブランチにPushされると、`sync-data-to-main.yml` が実行されます。
 
 ```text
-http://localhost:8000/docs/
+data branch
+  -> GitHub Actions
+  -> main/docs/data
+  -> GitHub Pages deploy
 ```
 
-本番環境ではActionsが `docs/index.html` を公開ルートへ展開するため、`https://kitazakis.github.io/farm-monitor/` で表示されます。
+同期workflowは `current/`, `logs/`, `images/` を `main/docs/data/` へコピーし、同じworkflow内でPagesをデプロイします。`GITHUB_TOKEN` によるcommitは別workflowを連鎖起動しないため、同期workflow内でデプロイまで行います。
 
-## 今回の対象外
+### mainブランチ更新時
 
-今回はGitHub側の表示環境のみを対象としています。ラズパイ側のPythonプログラム、Git自動Push、Harvest連携、メール送信機能は含めていません。
+WebサイトのHTML/CSS/JavaScriptやworkflowを変更した場合は、`publish.yml` が `docs/` をGitHub Pagesへデプロイします。
+
+## Raspberry Pi運用フロー
+
+Raspberry Piは `data` ブランチだけをcloneします。
+
+```sh
+git clone --branch data --single-branch git@github.com:kitazakis/farm-monitor.git farm-monitor-data
+cd farm-monitor-data
+```
+
+観測時の処理は次だけです。
+
+```text
+BLE取得
+CSV更新
+latest.json更新
+Camera撮影
+latest.jpg更新
+git add current/latest.json logs/YYYY/MM/ith11b_YYYY-MM.csv images/latest.jpg
+git commit -m "Update observation YYYY-MM-DD HH:MM:SS"
+git pull --rebase --autostash origin data
+git push origin data
+```
+
+Push前に `git pull --rebase --autostash origin data` を実行すると、dataブランチ上の最新状態を取り込んでからPushできます。Raspberry PiはWebソースを持たないため、HTML/CSS/JavaScriptとの競合は発生しません。
+
+## センサー追加
+
+照度、土壌水分、EC、pH、気圧、雨量などを追加する場合は、CSVと `latest.json` に列/キーを追加します。
+
+例:
+
+```csv
+timestamp,temperature,humidity,battery,rssi,illuminance,soil_moisture,ec,ph
+```
+
+`docs/app.js` には代表的な追加センサーの定義を用意しています。未定義の列もCSVとしては維持できるため、表示が必要になった時点で `FIELD_DEFINITIONS` に追加します。
+
+## 長期運用の方針
+
+- CSVは月単位に分割します。
+- Pagesは最新月のCSVだけをグラフ表示します。
+- 最新画像は `images/latest.jpg` のみを上書きします。
+- 履歴画像を保存する場合は、Gitリポジトリが肥大化しやすいため、日次・異常時のみなどに制限します。
+
+この構成により、Raspberry Piは観測データをPushするだけ、GitHubは受け取ったデータをPagesへ表示するだけ、という役割分担になります。

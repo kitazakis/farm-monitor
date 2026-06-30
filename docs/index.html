@@ -12,7 +12,7 @@
     <header class="site-header">
       <div class="header-inner">
         <div>
-          <p class="eyebrow">定点観測ダッシュボード</p>
+          <p class="eyebrow">Raspberry Pi 定点観測</p>
           <h1>Farm Monitor</h1>
         </div>
         <div class="status-pill" id="dataStatus">読み込み中</div>
@@ -32,7 +32,7 @@
         <article class="panel image-panel">
           <div class="panel-heading">
             <h2>最新画像</h2>
-            <p id="imageTimestamp">images/latest.jpg</p>
+            <p>docs/data/images/latest.jpg</p>
           </div>
           <div class="image-frame">
             <img id="latestImage" alt="農場の最新画像" hidden>
@@ -43,7 +43,7 @@
         <article class="panel chart-panel">
           <div class="panel-heading">
             <h2>温度・湿度</h2>
-            <p>data/ith11b_log.csv</p>
+            <p id="environmentSource">月次CSV</p>
           </div>
           <div class="chart-wrap">
             <canvas id="environmentChart" aria-label="温度と湿度の推移グラフ"></canvas>
@@ -54,10 +54,20 @@
       <section class="panel chart-panel">
         <div class="panel-heading">
           <h2>通信・電源</h2>
-          <p>RSSI とバッテリー残量</p>
+          <p>RSSI と Battery</p>
         </div>
         <div class="chart-wrap short">
-          <canvas id="healthChart" aria-label="RSSIとバッテリー残量の推移グラフ"></canvas>
+          <canvas id="healthChart" aria-label="RSSIとBatteryの推移グラフ"></canvas>
+        </div>
+      </section>
+
+      <section class="panel chart-panel" id="extraPanel" hidden>
+        <div class="panel-heading">
+          <h2>追加センサー</h2>
+          <p>CSV列追加に対応</p>
+        </div>
+        <div class="chart-wrap short">
+          <canvas id="extraChart" aria-label="追加センサーの推移グラフ"></canvas>
         </div>
       </section>
     </main>
