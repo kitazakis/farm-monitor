@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-06-30T08:30:00+09:00",
+  "temperature_c": 27.4,
+  "humidity_percent": 71,
+  "battery_percent": 88,
+  "rssi_dbm": -63,
+  "image_timestamp": "2026-06-30T08:25:00+09:00",
+  "device": {
+    "id": "ith11b-sample-001",
+    "type": "INKBIRD ITH-11-B",
+    "location": "greenhouse-a"
+  }
+}
