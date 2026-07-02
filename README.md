@@ -6,6 +6,19 @@ Raspberry Pi Zero 2 Wによる農業IoT定点観測システムのGitHub Pages�
 
 https://kitazakis.github.io/farm-monitor/
 
+## Repository Profile
+
+- Related OS: D0 (Development OS), M0 (Miscellaneous OS), Raspberry Pi operations
+- Current role: Public GitHub Pages dashboard and data workflow for Raspberry Pi farm monitoring.
+- Planned repository name: `farm-monitor`
+- Current status: Active public repository. Rename is not planned because the GitHub Pages URL and Raspberry Pi workflow depend on the current repository name.
+- Primary machines: Raspberry Pi for data collection, GitHub Pages for dashboard hosting, MacBook Air for website maintenance.
+
+## Phase3-1 Scope
+
+- README, Description, and Topics may be updated.
+- Repository Rename, Archive, branch changes, workflow changes, and data branch changes are not performed in Phase3-1.
+
 ## 役割分担
 
 このリポジトリは、Webサイトと観測データをブランチで分離します。
