@@ -95,6 +95,8 @@ h2 {
   margin-bottom: 14px;
 }
 
+.panel-heading.compact { margin-bottom: 10px; }
+
 .section-heading p,
 .panel-heading p {
   margin-bottom: 0;
@@ -119,6 +121,11 @@ h2 {
 .metric-card {
   min-height: 124px;
   padding: 18px;
+}
+
+.metric-card.warning {
+  border-color: #f0c9ad;
+  background: #fff8f3;
 }
 
 .metric-label {
@@ -149,6 +156,50 @@ h2 {
   margin: 12px 0 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.controls-panel { margin-bottom: 18px; }
+
+.range-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.range-button {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 7px 13px;
+}
+
+.range-button:hover {
+  border-color: var(--green);
+  color: var(--green-dark);
+}
+
+.range-button.active {
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+
+.insight {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.insight.warning {
+  color: var(--amber);
+  font-weight: 700;
 }
 
 .content-grid {
@@ -225,4 +276,5 @@ h2 {
   .image-frame { min-height: 240px; }
   .chart-wrap,
   .chart-wrap.short { height: 300px; }
+  .range-button { flex: 1 1 auto; }
 }
