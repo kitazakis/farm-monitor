@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
   group: sync-observation-data
@@ -48,70 +47,18 @@ jobs:
           cat > main-branch/docs/data/README.md <<'EOF'
           This directory is generated from the data branch by GitHub Actions.
           Do not edit files under docs/data on main manually.
+          GitHub Pages serves main/docs directly.
           EOF
 
       - name: Commit synced data to main
-        id: commit
         run: |
           cd main-branch
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git diff --quiet -- docs/data; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "No observation data changes to sync."
           else
             git add docs/data
             git commit -m "Sync observation data from data branch"
-            sync_sha=$(git rev-parse HEAD)
             git push origin main
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "sync_sha=${sync_sha}" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Wait for main branch ref
-        if: steps.commit.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SYNC_SHA: ${{ steps.commit.outputs.sync_sha }}
-        run: |
-          for attempt in $(seq 1 20); do
-            branch_sha=$(curl -fsS \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/branches/main" \
-              | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])')
-            if [ "${branch_sha}" = "${SYNC_SHA}" ]; then
-              echo "main branch is at ${SYNC_SHA}"
-              sleep 10
-              exit 0
-            fi
-            echo "waiting for main branch ref: ${branch_sha} != ${SYNC_SHA}"
-            sleep 3
-          done
-          echo "main branch did not reach ${SYNC_SHA}" >&2
-          exit 1
-
-      - name: Dispatch Pages publish workflow
-        if: steps.commit.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          active_publish_count=$(curl -fsS \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs?per_page=20" \
-            | python3 -c 'import json,sys; data=json.load(sys.stdin); print(sum(1 for r in data.get("workflow_runs", []) if r.get("name") == "Publish GitHub Pages" and r.get("status") in {"queued", "in_progress", "waiting", "requested", "pending"}))')
-
-          if [ "${active_publish_count}" != "0" ]; then
-            echo "Publish workflow already active; skip dispatch. active=${active_publish_count}"
-            exit 0
-          fi
-
-          curl -fsS -X POST \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/dispatches" \
-            -d '{"ref":"main"}'
