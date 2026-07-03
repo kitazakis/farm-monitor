@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-07-03 15:00:06",
+  "timestamp": "2026-07-03 15:20:42",
   "temperature": 25.2,
-  "humidity": 66.7,
+  "humidity": 65.6,
   "battery": 88,
-  "rssi": -24
+  "rssi": -25
 }
