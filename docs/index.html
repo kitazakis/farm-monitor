@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Farm Monitor</title>
-    <link rel="stylesheet" href="style.css?v=20260705-clock2">
+    <link rel="stylesheet" href="style.css?v=20260705-harvest">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-    <script src="app.js?v=20260705-clock2" defer></script>
+    <script src="app.js?v=20260705-harvest" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -35,6 +35,42 @@
         </div>
         <div class="range-controls" id="rangeControls" aria-label="グラフ表示期間"></div>
         <p class="insight" id="batteryInsight">Battery 推移: --</p>
+      </section>
+
+      <section class="panel harvest-panel" aria-labelledby="harvest-title">
+        <div class="panel-heading compact">
+          <div>
+            <h2 id="harvest-title">収穫目安</h2>
+            <p>積算温度時間</p>
+          </div>
+          <p id="harvestSummary">計算待ち</p>
+        </div>
+        <div class="harvest-controls">
+          <label>
+            <span>温度データ</span>
+            <select id="harvestSource">
+              <option value="air">外気温</option>
+              <option value="soil">土壌温度</option>
+            </select>
+          </label>
+          <label>
+            <span>開始日時</span>
+            <input id="harvestStart" type="datetime-local">
+          </label>
+          <label>
+            <span>目標値</span>
+            <input id="harvestThreshold" type="number" min="1" step="100" inputmode="numeric">
+          </label>
+        </div>
+        <div class="harvest-progress" aria-hidden="true">
+          <div id="harvestProgressBar"></div>
+        </div>
+        <div class="harvest-stats">
+          <div><span>積算</span><strong id="harvestAccumulated">-- ℃・h</strong></div>
+          <div><span>達成率</span><strong id="harvestProgressText">-- %</strong></div>
+          <div><span>残り</span><strong id="harvestRemaining">-- ℃・h</strong></div>
+        </div>
+        <p class="insight" id="harvestNote">トウモロコシ向けに、外気温と土壌温度を比較できる仮指標です。</p>
       </section>
 
       <section class="content-grid">
