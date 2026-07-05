@@ -246,6 +246,12 @@ h2 {
 
 .chart-wrap.short { height: 300px; }
 
+.soil-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .empty-state {
   display: grid;
   height: 100%;
@@ -255,7 +261,8 @@ h2 {
 
 @media (max-width: 940px) {
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .content-grid { grid-template-columns: 1fr; }
+  .content-grid,
+  .soil-chart-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
