@@ -5,6 +5,13 @@ const PATHS = {
   image: `${DATA_ROOT}/images/latest.jpg`,
 };
 
+const HARVEST_STORAGE_KEY = "farmMonitorHarvestSettings";
+const HARVEST_DEFAULTS = {
+  source: "air",
+  threshold: 18000,
+  start: "",
+};
+
 const FIELD_DEFINITIONS = {
   temperature: { label: "温度", unit: "degC", digits: 1, color: "#b86b16", note: "INKBIRD ITH-11-B" },
   humidity: { label: "湿度", unit: "%", digits: 1, color: "#2f6f9f", note: "相対湿度" },
@@ -44,6 +51,7 @@ const state = {
   rows: [],
   soilRows: [],
   activeRange: localStorage.getItem("farmMonitorRange") || "24h",
+  harvest: loadHarvestSettings(),
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -52,19 +60,26 @@ async function init() {
   renderMetricCards({});
   renderUpdateSummary();
   renderRangeControls();
+  renderHarvestControls();
+  renderHarvestEstimator();
   document.getElementById("rangeControls").addEventListener("click", handleRangeClick);
+  document.getElementById("harvestSource").addEventListener("change", handleHarvestInput);
+  document.getElementById("harvestStart").addEventListener("input", handleHarvestInput);
+  document.getElementById("harvestThreshold").addEventListener("input", handleHarvestInput);
 
   try {
     const latest = await fetchJson(PATHS.latest);
     state.latest = { ...state.latest, ...latest };
     renderLatest();
     await Promise.all([loadMonthlyLog(latest), loadSoilData(), loadLatestImage()]);
+    renderHarvestEstimator();
     setStatus("データ更新済み");
   } catch (error) {
     setStatus("データを読み込めません", true);
     setText("chartSummary", "データを読み込めません");
     renderUpdateSummary();
     renderMetricCards(state.latest);
+    renderHarvestEstimator();
     renderEmptyChart("environmentChart", "データを読み込めません");
     renderEmptyChart("healthChart", "データを読み込めません");
     document.getElementById("latestImage").hidden = true;
@@ -91,6 +106,12 @@ function renderRangeControls() {
   }).join("");
 }
 
+function renderHarvestControls() {
+  document.getElementById("harvestSource").value = state.harvest.source;
+  document.getElementById("harvestStart").value = state.harvest.start;
+  document.getElementById("harvestThreshold").value = state.harvest.threshold;
+}
+
 function handleRangeClick(event) {
   const button = event.target.closest("button[data-range]");
   if (!button) return;
@@ -98,6 +119,15 @@ function handleRangeClick(event) {
   localStorage.setItem("farmMonitorRange", state.activeRange);
   renderRangeControls();
   updateCharts();
+}
+
+function handleHarvestInput(event) {
+  const { id, value } = event.target;
+  if (id === "harvestSource") state.harvest.source = value;
+  if (id === "harvestStart") state.harvest.start = value;
+  if (id === "harvestThreshold") state.harvest.threshold = Number(value) || HARVEST_DEFAULTS.threshold;
+  saveHarvestSettings();
+  renderHarvestEstimator();
 }
 
 async function loadMonthlyLog(latest) {
@@ -124,6 +154,7 @@ async function loadMonthlyLog(latest) {
   }
 
   updateCharts();
+  renderHarvestEstimator();
 }
 
 async function loadSoilData() {
@@ -143,6 +174,7 @@ async function loadSoilData() {
       soilPanel.hidden = false;
       renderEmptyChart("soilWaterChart", "CSVパスを判定できません");
       renderEmptyChart("soilChemChart", "CSVパスを判定できません");
+      renderHarvestEstimator();
       return;
     }
 
@@ -156,13 +188,16 @@ async function loadSoilData() {
       soilPanel.hidden = false;
       renderEmptyChart("soilWaterChart", "土壌CSVデータがありません");
       renderEmptyChart("soilChemChart", "土壌CSVデータがありません");
+      renderHarvestEstimator();
       return;
     }
 
     updateSoilCharts();
+    renderHarvestEstimator();
   } catch (error) {
     state.soilRows = [];
     soilPanel.hidden = true;
+    renderHarvestEstimator();
   }
 }
 
@@ -241,6 +276,77 @@ function updateSoilCharts() {
     leftTitle: "EC (uS/cm)",
     rightTitle: "pH",
   });
+}
+
+function renderHarvestEstimator() {
+  const source = state.harvest.source === "soil" ? "soil" : "air";
+  const sourceConfig = source === "soil"
+    ? { label: "土壌温度", rows: state.soilRows, field: "soil_temperature_c" }
+    : { label: "外気温", rows: state.rows, field: "temperature" };
+  const rows = sourceConfig.rows
+    .filter((row) => row.date && Number.isFinite(row[sourceConfig.field]))
+    .sort((a, b) => a.date - b.date);
+  const threshold = Math.max(Number(state.harvest.threshold) || HARVEST_DEFAULTS.threshold, 1);
+
+  if (rows.length < 2) {
+    setHarvestResult({
+      summary: `${sourceConfig.label}: データ不足`,
+      accumulated: null,
+      progress: 0,
+      remaining: null,
+      note: `${sourceConfig.label}の時系列データが2点以上必要です。`,
+    });
+    return;
+  }
+
+  const fallbackStart = rows[0].date;
+  const startDate = parseDateTimeLocal(state.harvest.start) || fallbackStart;
+  const startInput = document.getElementById("harvestStart");
+  if (!state.harvest.start && startInput && !startInput.value) {
+    startInput.value = formatDateTimeLocal(fallbackStart);
+  }
+
+  const accumulated = calculateTemperatureHours(rows, sourceConfig.field, startDate);
+  const progress = Math.min((accumulated / threshold) * 100, 100);
+  const remaining = Math.max(threshold - accumulated, 0);
+  const reached = accumulated >= threshold;
+  const startText = formatDateTime(startDate);
+
+  setHarvestResult({
+    summary: `${sourceConfig.label}: ${formatNumber(progress, 1)}%`,
+    accumulated,
+    progress,
+    remaining,
+    note: `${startText} から ${sourceConfig.label}で積算。${reached ? "目標値に到達しています。" : "目標値は現場の実測に合わせて調整してください。"}`,
+  });
+}
+
+function setHarvestResult(result) {
+  setText("harvestSummary", result.summary);
+  setText("harvestAccumulated", result.accumulated === null ? "-- ℃・h" : `${formatNumber(result.accumulated, 0)} ℃・h`);
+  setText("harvestProgressText", `${formatNumber(result.progress, 1)} %`);
+  setText("harvestRemaining", result.remaining === null ? "-- ℃・h" : `${formatNumber(result.remaining, 0)} ℃・h`);
+  setText("harvestNote", result.note);
+  document.getElementById("harvestProgressBar").style.width = `${Math.min(Math.max(result.progress, 0), 100)}%`;
+}
+
+function calculateTemperatureHours(rows, field, startDate) {
+  let total = 0;
+
+  for (let index = 1; index < rows.length; index += 1) {
+    const previous = rows[index - 1];
+    const current = rows[index];
+    if (!previous.date || !current.date || current.date <= startDate) continue;
+
+    const segmentStart = previous.date < startDate ? startDate : previous.date;
+    const hours = (current.date - segmentStart) / 36e5;
+    if (hours <= 0) continue;
+
+    const averageTemperature = (previous[field] + current[field]) / 2;
+    if (Number.isFinite(averageTemperature)) total += averageTemperature * hours;
+  }
+
+  return total;
 }
 
 function currentRange() {
@@ -536,6 +642,18 @@ function testImage(path) {
   });
 }
 
+function loadHarvestSettings() {
+  try {
+    return { ...HARVEST_DEFAULTS, ...JSON.parse(localStorage.getItem(HARVEST_STORAGE_KEY) || "{}") };
+  } catch (error) {
+    return { ...HARVEST_DEFAULTS };
+  }
+}
+
+function saveHarvestSettings() {
+  localStorage.setItem(HARVEST_STORAGE_KEY, JSON.stringify(state.harvest));
+}
+
 function formatNumber(value, digits = 1) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "--";
@@ -560,8 +678,14 @@ function parseTimestamp(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function parseDateTimeLocal(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function formatDateTime(value) {
-  const date = parseTimestamp(value);
+  const date = value instanceof Date ? value : parseTimestamp(value);
   if (!date) return String(value || "--");
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
@@ -571,6 +695,13 @@ function formatDateTime(value) {
     minute: "2-digit",
     second: "2-digit",
   }).format(date);
+}
+
+function formatDateTimeLocal(value) {
+  const date = value instanceof Date ? value : parseTimestamp(value);
+  if (!date) return "";
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function formatShortTime(value) {
