@@ -4,9 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Farm Monitor</title>
-    <link rel="stylesheet" href="style.css?v=20260705-harvest2">
+    <link rel="stylesheet" href="style.css?v=20260705-degree-day">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
     <script src="app.js?v=20260705-harvest2" defer></script>
+    <script src="harvest-day.js?v=20260705-degree-day" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -41,7 +42,7 @@
         <div class="panel-heading compact">
           <div>
             <h2 id="harvest-title">収穫目安</h2>
-            <p>積算温度時間</p>
+            <p>単純積算温度</p>
           </div>
           <p id="harvestSummary">計算待ち</p>
         </div>
@@ -58,19 +59,19 @@
             <input id="harvestStart" type="datetime-local">
           </label>
           <label>
-            <span>目標値</span>
-            <input id="harvestThreshold" type="number" min="1" step="100" inputmode="numeric">
+            <span>目標値（℃・日）</span>
+            <input id="harvestThreshold" type="number" min="1" step="10" inputmode="numeric" value="1420">
           </label>
         </div>
         <div class="harvest-progress" aria-hidden="true">
           <div id="harvestProgressBar"></div>
         </div>
         <div class="harvest-stats">
-          <div><span>積算</span><strong id="harvestAccumulated">-- ℃・h</strong></div>
+          <div><span>積算</span><strong id="harvestAccumulated">-- ℃・日</strong></div>
           <div><span>達成率</span><strong id="harvestProgressText">-- %</strong></div>
-          <div><span>残り</span><strong id="harvestRemaining">-- ℃・h</strong></div>
+          <div><span>残り</span><strong id="harvestRemaining">-- ℃・日</strong></div>
         </div>
-        <p class="insight" id="harvestNote">トウモロコシ向けに、外気温と土壌温度を比較できる仮指標です。</p>
+        <p class="insight" id="harvestNote">ゴールドラッシュ83日タイプの目安を1420 ℃・日として仮設定しています。</p>
       </section>
 
       <section class="content-grid">
