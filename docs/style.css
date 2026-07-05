@@ -158,7 +158,8 @@ h2 {
   font-size: 0.82rem;
 }
 
-.controls-panel { margin-bottom: 18px; }
+.controls-panel,
+.harvest-panel { margin-bottom: 18px; }
 
 .range-controls {
   display: flex;
@@ -189,6 +190,84 @@ h2 {
   border-color: var(--green);
   background: var(--green-soft);
   color: var(--green-dark);
+}
+
+.harvest-controls {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1fr) minmax(160px, 0.8fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.harvest-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.harvest-controls input,
+.harvest-controls select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 7px 10px;
+}
+
+.harvest-controls input:focus,
+.harvest-controls select:focus {
+  border-color: var(--green);
+  outline: 2px solid rgba(47, 125, 70, 0.14);
+}
+
+.harvest-progress {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  margin-top: 14px;
+}
+
+.harvest-progress div {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), #7a9f38);
+  transition: width 0.2s ease;
+}
+
+.harvest-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.harvest-stats div {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  background: #fbfdfb;
+}
+
+.harvest-stats span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.harvest-stats strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 1.16rem;
+  line-height: 1.2;
 }
 
 .insight {
@@ -269,7 +348,8 @@ h2 {
 @media (max-width: 940px) {
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .content-grid,
-  .soil-chart-grid { grid-template-columns: 1fr; }
+  .soil-chart-grid,
+  .harvest-controls { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
@@ -283,7 +363,8 @@ h2 {
     flex-direction: column;
   }
 
-  .metric-grid { grid-template-columns: 1fr; }
+  .metric-grid,
+  .harvest-stats { grid-template-columns: 1fr; }
   .metric-card { min-height: 104px; }
   .metric-value { font-size: 1.75rem; }
   .panel { padding: 14px; }
