@@ -10,20 +10,21 @@ const FIELD_DEFINITIONS = {
   humidity: { label: "湿度", unit: "%", digits: 1, color: "#2f6f9f", note: "相対湿度" },
   battery: { label: "Battery", unit: "%", digits: 0, color: "#2f7d46", note: "センサー電池" },
   rssi: { label: "RSSI", unit: "dBm", digits: 0, color: "#5f6673", note: "BLE受信強度" },
+  timestamp: { label: "温湿度更新", unit: "", digits: 0, color: "#66736a", note: "latest.json" },
   soil_timestamp: { label: "土壌更新", unit: "", digits: 0, color: "#66736a", note: "soil_latest.json" },
-  illuminance: { label: "照度", unit: "lx", digits: 0, color: "#c69214", note: "追加センサー" },
-  soil_moisture: { label: "土壌水分", unit: "%", digits: 1, color: "#7b6f36", note: "追加センサー" },
   soil_moisture_pct: { label: "土壌水分", unit: "%", digits: 1, color: "#7b6f36", note: "土壌センサー" },
   soil_temperature_c: { label: "土壌温度", unit: "degC", digits: 1, color: "#9a6a2f", note: "土壌センサー" },
   soil_ec_us_cm: { label: "土壌EC", unit: "uS/cm", digits: 0, color: "#7a5ca8", note: "土壌センサー" },
   soil_ph: { label: "土壌pH", unit: "", digits: 1, color: "#b7554f", note: "土壌センサー" },
+  illuminance: { label: "照度", unit: "lx", digits: 0, color: "#c69214", note: "追加センサー" },
+  soil_moisture: { label: "土壌水分", unit: "%", digits: 1, color: "#7b6f36", note: "追加センサー" },
   ec: { label: "EC", unit: "mS/cm", digits: 2, color: "#7a5ca8", note: "追加センサー" },
   ph: { label: "pH", unit: "", digits: 2, color: "#b7554f", note: "追加センサー" },
   pressure: { label: "気圧", unit: "hPa", digits: 1, color: "#64748b", note: "追加センサー" },
   rainfall: { label: "雨量", unit: "mm", digits: 1, color: "#2563eb", note: "追加センサー" },
 };
 
-const PRIMARY_METRICS = ["temperature", "humidity", "battery", "rssi", "timestamp"];
+const PRIMARY_METRICS = ["temperature", "humidity", "battery", "rssi", "timestamp", "soil_timestamp"];
 const ENVIRONMENT_FIELDS = ["temperature", "humidity"];
 const HEALTH_FIELDS = ["battery", "rssi"];
 const SOIL_WATER_FIELDS = ["soil_moisture_pct", "soil_temperature_c"];
@@ -49,18 +50,21 @@ document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   renderMetricCards({});
+  renderUpdateSummary();
   renderRangeControls();
+  document.getElementById("rangeControls").addEventListener("click", handleRangeClick);
 
   try {
     const latest = await fetchJson(PATHS.latest);
-    state.latest = latest;
-    renderLatest(state.latest);
+    state.latest = { ...state.latest, ...latest };
+    renderLatest();
     await Promise.all([loadMonthlyLog(latest), loadSoilData(), loadLatestImage()]);
     setStatus("データ更新済み");
   } catch (error) {
     setStatus("データを読み込めません", true);
-    setText("lastUpdated", "温湿度更新: --");
     setText("chartSummary", "データを読み込めません");
+    renderUpdateSummary();
+    renderMetricCards(state.latest);
     renderEmptyChart("environmentChart", "データを読み込めません");
     renderEmptyChart("healthChart", "データを読み込めません");
     document.getElementById("latestImage").hidden = true;
@@ -68,9 +72,15 @@ async function init() {
   }
 }
 
-function renderLatest(latest) {
-  renderMetricCards(latest);
-  setText("lastUpdated", `温湿度更新: ${formatDateTime(latest.timestamp)}`);
+function renderLatest() {
+  renderMetricCards(state.latest);
+  renderUpdateSummary();
+}
+
+function renderUpdateSummary() {
+  const environmentTime = formatDateTime(state.latest.timestamp);
+  const soilTime = formatDateTime(state.latest.soil_timestamp);
+  setText("lastUpdated", `データ更新: 温湿度 ${environmentTime} / 土壌 ${soilTime}`);
 }
 
 function renderRangeControls() {
@@ -79,15 +89,15 @@ function renderRangeControls() {
     const active = option.key === state.activeRange ? " active" : "";
     return `<button class="range-button${active}" type="button" data-range="${option.key}">${option.label}</button>`;
   }).join("");
+}
 
-  wrap.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-range]");
-    if (!button) return;
-    state.activeRange = button.dataset.range;
-    localStorage.setItem("farmMonitorRange", state.activeRange);
-    renderRangeControls();
-    updateCharts();
-  }, { once: true });
+function handleRangeClick(event) {
+  const button = event.target.closest("button[data-range]");
+  if (!button) return;
+  state.activeRange = button.dataset.range;
+  localStorage.setItem("farmMonitorRange", state.activeRange);
+  renderRangeControls();
+  updateCharts();
 }
 
 async function loadMonthlyLog(latest) {
@@ -123,7 +133,7 @@ async function loadSoilData() {
     const soilLatest = await fetchJson(PATHS.soilLatest);
     const { timestamp, ...soilValues } = soilLatest;
     state.latest = { ...state.latest, ...soilValues, soil_timestamp: timestamp };
-    renderLatest(state.latest);
+    renderLatest();
 
     const logPath = soilLatest.log_path || buildSoilMonthlyLogPath(timestamp);
     const updatedText = timestamp ? ` / 土壌更新: ${formatDateTime(timestamp)}` : "";
@@ -162,7 +172,7 @@ function updateCharts() {
 
   const visibleRows = getVisibleRows(state.rows);
   const chartRows = downsampleRows(visibleRows, maxChartPoints());
-  const range = RANGE_OPTIONS.find((option) => option.key === state.activeRange) || RANGE_OPTIONS[1];
+  const range = currentRange();
 
   if (!visibleRows.length) {
     renderEmptyChart("environmentChart", "選択期間にデータがありません");
@@ -192,6 +202,7 @@ function updateCharts() {
     return !ENVIRONMENT_FIELDS.includes(key)
       && !HEALTH_FIELDS.includes(key)
       && !SOIL_FIELDS.includes(key)
+      && !PRIMARY_METRICS.includes(key)
       && visibleRows.some((row) => row[key] !== null && row[key] !== undefined);
   });
 
@@ -232,8 +243,12 @@ function updateSoilCharts() {
   });
 }
 
+function currentRange() {
+  return RANGE_OPTIONS.find((option) => option.key === state.activeRange) || RANGE_OPTIONS[1];
+}
+
 function getVisibleRows(rows) {
-  const range = RANGE_OPTIONS.find((option) => option.key === state.activeRange) || RANGE_OPTIONS[1];
+  const range = currentRange();
   if (!range.hours) return rows;
 
   const latest = rows[rows.length - 1]?.date;
@@ -319,12 +334,9 @@ function renderMetricCards(latest) {
   const metrics = [...PRIMARY_METRICS, ...additional];
 
   grid.innerHTML = metrics.map((key) => {
-    if (key === "timestamp") {
-      return metricCard("温湿度更新", formatDateTime(latest.timestamp), "", "latest.json");
-    }
-
-    if (key === "soil_timestamp") {
-      return metricCard("土壌更新", formatDateTime(latest.soil_timestamp), "", "soil_latest.json");
+    if (key === "timestamp" || key === "soil_timestamp") {
+      const def = FIELD_DEFINITIONS[key];
+      return metricCard(def.label, formatDateTime(latest[key]), "", def.note);
     }
 
     const def = FIELD_DEFINITIONS[key] || { label: key, unit: "", digits: 1, note: "追加データ" };
@@ -524,7 +536,7 @@ function testImage(path) {
   });
 }
 
-function formatNumber(value, digits) {
+function formatNumber(value, digits = 1) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "--";
   return new Intl.NumberFormat("ja-JP", { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(number);
