@@ -1,6 +1,7 @@
 const DATA_ROOT = "data";
 const PATHS = {
   latest: `${DATA_ROOT}/current/latest.json`,
+  soilLatest: `${DATA_ROOT}/current/soil_latest.json`,
   image: `${DATA_ROOT}/images/latest.jpg`,
 };
 
@@ -24,6 +25,9 @@ const FIELD_DEFINITIONS = {
 const PRIMARY_METRICS = ["temperature", "humidity", "battery", "rssi", "timestamp"];
 const ENVIRONMENT_FIELDS = ["temperature", "humidity"];
 const HEALTH_FIELDS = ["battery", "rssi"];
+const SOIL_WATER_FIELDS = ["soil_moisture_pct", "soil_temperature_c"];
+const SOIL_CHEM_FIELDS = ["soil_ec_us_cm", "soil_ph"];
+const SOIL_FIELDS = [...SOIL_WATER_FIELDS, ...SOIL_CHEM_FIELDS];
 const RANGE_OPTIONS = [
   { key: "6h", label: "6時間", hours: 6 },
   { key: "24h", label: "24時間", hours: 24 },
@@ -34,7 +38,9 @@ const RANGE_OPTIONS = [
 
 const state = {
   charts: {},
+  latest: {},
   rows: [],
+  soilRows: [],
   activeRange: localStorage.getItem("farmMonitorRange") || "24h",
 };
 
@@ -46,8 +52,9 @@ async function init() {
 
   try {
     const latest = await fetchJson(PATHS.latest);
-    renderLatest(latest);
-    await Promise.all([loadMonthlyLog(latest), loadLatestImage()]);
+    state.latest = latest;
+    renderLatest(state.latest);
+    await Promise.all([loadMonthlyLog(latest), loadSoilData(), loadLatestImage()]);
     setStatus("データ更新済み");
   } catch (error) {
     setStatus("データを読み込めません", true);
@@ -108,7 +115,46 @@ async function loadMonthlyLog(latest) {
   updateCharts();
 }
 
+async function loadSoilData() {
+  const soilPanel = document.getElementById("soilPanel");
+
+  try {
+    const soilLatest = await fetchJson(PATHS.soilLatest);
+    state.latest = { ...state.latest, ...soilLatest };
+    renderLatest(state.latest);
+
+    const logPath = soilLatest.log_path || buildSoilMonthlyLogPath(soilLatest.timestamp);
+    setText("soilSource", logPath || "月次CSV");
+
+    if (!logPath) {
+      soilPanel.hidden = false;
+      renderEmptyChart("soilWaterChart", "CSVパスを判定できません");
+      renderEmptyChart("soilChemChart", "CSVパスを判定できません");
+      return;
+    }
+
+    const csv = await fetchText(`${DATA_ROOT}/${logPath}`);
+    state.soilRows = parseCsv(csv)
+      .map(normalizeRow)
+      .filter((row) => row.timestamp && row.date)
+      .sort((a, b) => a.date - b.date);
+
+    if (!state.soilRows.length) {
+      soilPanel.hidden = false;
+      renderEmptyChart("soilWaterChart", "土壌CSVデータがありません");
+      renderEmptyChart("soilChemChart", "土壌CSVデータがありません");
+      return;
+    }
+
+    updateSoilCharts();
+  } catch (error) {
+    state.soilRows = [];
+    soilPanel.hidden = true;
+  }
+}
+
 function updateCharts() {
+  updateSoilCharts();
   if (!state.rows.length) return;
 
   const visibleRows = getVisibleRows(state.rows);
@@ -140,7 +186,10 @@ function updateCharts() {
   });
 
   const extraFields = Object.keys(FIELD_DEFINITIONS).filter((key) => {
-    return !ENVIRONMENT_FIELDS.includes(key) && !HEALTH_FIELDS.includes(key) && visibleRows.some((row) => row[key] !== null && row[key] !== undefined);
+    return !ENVIRONMENT_FIELDS.includes(key)
+      && !HEALTH_FIELDS.includes(key)
+      && !SOIL_FIELDS.includes(key)
+      && visibleRows.some((row) => row[key] !== null && row[key] !== undefined);
   });
 
   const extraPanel = document.getElementById("extraPanel");
@@ -153,6 +202,31 @@ function updateCharts() {
   } else {
     extraPanel.hidden = true;
   }
+}
+
+function updateSoilCharts() {
+  const soilPanel = document.getElementById("soilPanel");
+  if (!state.soilRows.length) return;
+
+  const visibleRows = getVisibleRows(state.soilRows);
+  const chartRows = downsampleRows(visibleRows, maxChartPoints());
+  soilPanel.hidden = false;
+
+  if (!visibleRows.length) {
+    renderEmptyChart("soilWaterChart", "選択期間に土壌データがありません");
+    renderEmptyChart("soilChemChart", "選択期間に土壌データがありません");
+    return;
+  }
+
+  renderLineChart("soilWaterChart", chartRows, SOIL_WATER_FIELDS, {
+    leftTitle: "土壌水分 (%)",
+    rightTitle: "土壌温度 (degC)",
+  });
+
+  renderLineChart("soilChemChart", chartRows, SOIL_CHEM_FIELDS, {
+    leftTitle: "EC (uS/cm)",
+    rightTitle: "pH",
+  });
 }
 
 function getVisibleRows(rows) {
@@ -243,7 +317,7 @@ function renderMetricCards(latest) {
 
   grid.innerHTML = metrics.map((key) => {
     if (key === "timestamp") {
-      return metricCard("更新日時", formatDateTime(latest.timestamp), "", "latest.json 最新値");
+      return metricCard("更新日時", formatDateTime(latest.timestamp), "", "最新データ");
     }
 
     const def = FIELD_DEFINITIONS[key] || { label: key, unit: "", digits: 1, note: "追加データ" };
@@ -410,6 +484,12 @@ function buildMonthlyLogPath(timestamp) {
   const parts = parseTimestampParts(timestamp);
   if (!parts) return "";
   return `logs/${parts.year}/${parts.month}/ith11b_${parts.year}-${parts.month}.csv`;
+}
+
+function buildSoilMonthlyLogPath(timestamp) {
+  const parts = parseTimestampParts(timestamp);
+  if (!parts) return "";
+  return `logs/${parts.year}/${parts.month}/soil_${parts.year}-${parts.month}.csv`;
 }
 
 function parseTimestampParts(value) {
