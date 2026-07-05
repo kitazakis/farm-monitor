@@ -70,6 +70,21 @@
         </div>
       </section>
 
+      <section class="panel chart-panel" id="soilPanel" hidden>
+        <div class="panel-heading">
+          <h2>土壌センサー</h2>
+          <p id="soilSource">月次CSV</p>
+        </div>
+        <div class="soil-chart-grid">
+          <div class="chart-wrap short">
+            <canvas id="soilWaterChart" aria-label="土壌水分と土壌温度の推移グラフ"></canvas>
+          </div>
+          <div class="chart-wrap short">
+            <canvas id="soilChemChart" aria-label="土壌ECとpHの推移グラフ"></canvas>
+          </div>
+        </div>
+      </section>
+
       <section class="panel chart-panel" id="extraPanel" hidden>
         <div class="panel-heading">
           <h2>追加センサー</h2>
