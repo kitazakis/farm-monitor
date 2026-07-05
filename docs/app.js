@@ -10,6 +10,7 @@ const FIELD_DEFINITIONS = {
   humidity: { label: "湿度", unit: "%", digits: 1, color: "#2f6f9f", note: "相対湿度" },
   battery: { label: "Battery", unit: "%", digits: 0, color: "#2f7d46", note: "センサー電池" },
   rssi: { label: "RSSI", unit: "dBm", digits: 0, color: "#5f6673", note: "BLE受信強度" },
+  soil_timestamp: { label: "土壌更新", unit: "", digits: 0, color: "#66736a", note: "soil_latest.json" },
   illuminance: { label: "照度", unit: "lx", digits: 0, color: "#c69214", note: "追加センサー" },
   soil_moisture: { label: "土壌水分", unit: "%", digits: 1, color: "#7b6f36", note: "追加センサー" },
   soil_moisture_pct: { label: "土壌水分", unit: "%", digits: 1, color: "#7b6f36", note: "土壌センサー" },
@@ -27,7 +28,7 @@ const ENVIRONMENT_FIELDS = ["temperature", "humidity"];
 const HEALTH_FIELDS = ["battery", "rssi"];
 const SOIL_WATER_FIELDS = ["soil_moisture_pct", "soil_temperature_c"];
 const SOIL_CHEM_FIELDS = ["soil_ec_us_cm", "soil_ph"];
-const SOIL_FIELDS = [...SOIL_WATER_FIELDS, ...SOIL_CHEM_FIELDS];
+const SOIL_FIELDS = [...SOIL_WATER_FIELDS, ...SOIL_CHEM_FIELDS, "soil_timestamp"];
 const RANGE_OPTIONS = [
   { key: "6h", label: "6時間", hours: 6 },
   { key: "24h", label: "24時間", hours: 24 },
@@ -58,7 +59,7 @@ async function init() {
     setStatus("データ更新済み");
   } catch (error) {
     setStatus("データを読み込めません", true);
-    setText("lastUpdated", "更新日時: --");
+    setText("lastUpdated", "温湿度更新: --");
     setText("chartSummary", "データを読み込めません");
     renderEmptyChart("environmentChart", "データを読み込めません");
     renderEmptyChart("healthChart", "データを読み込めません");
@@ -69,7 +70,7 @@ async function init() {
 
 function renderLatest(latest) {
   renderMetricCards(latest);
-  setText("lastUpdated", `更新日時: ${formatDateTime(latest.timestamp)}`);
+  setText("lastUpdated", `温湿度更新: ${formatDateTime(latest.timestamp)}`);
 }
 
 function renderRangeControls() {
@@ -120,11 +121,13 @@ async function loadSoilData() {
 
   try {
     const soilLatest = await fetchJson(PATHS.soilLatest);
-    state.latest = { ...state.latest, ...soilLatest };
+    const { timestamp, ...soilValues } = soilLatest;
+    state.latest = { ...state.latest, ...soilValues, soil_timestamp: timestamp };
     renderLatest(state.latest);
 
-    const logPath = soilLatest.log_path || buildSoilMonthlyLogPath(soilLatest.timestamp);
-    setText("soilSource", logPath || "月次CSV");
+    const logPath = soilLatest.log_path || buildSoilMonthlyLogPath(timestamp);
+    const updatedText = timestamp ? ` / 土壌更新: ${formatDateTime(timestamp)}` : "";
+    setText("soilSource", `${logPath || "月次CSV"}${updatedText}`);
 
     if (!logPath) {
       soilPanel.hidden = false;
@@ -170,7 +173,7 @@ function updateCharts() {
 
   setText(
     "chartSummary",
-    `${range.label}: ${visibleRows.length}件表示 / ${state.rows.length}件中${chartRows.length < visibleRows.length ? `（描画 ${chartRows.length}点に間引き）` : ""}`,
+    `${range.label}: 温湿度 ${visibleRows.length}件 / ${state.rows.length}件中${chartRows.length < visibleRows.length ? `（描画 ${chartRows.length}点に間引き）` : ""}`,
   );
 
   renderBatteryInsight(visibleRows);
@@ -317,7 +320,11 @@ function renderMetricCards(latest) {
 
   grid.innerHTML = metrics.map((key) => {
     if (key === "timestamp") {
-      return metricCard("更新日時", formatDateTime(latest.timestamp), "", "最新データ");
+      return metricCard("温湿度更新", formatDateTime(latest.timestamp), "", "latest.json");
+    }
+
+    if (key === "soil_timestamp") {
+      return metricCard("土壌更新", formatDateTime(latest.soil_timestamp), "", "soil_latest.json");
     }
 
     const def = FIELD_DEFINITIONS[key] || { label: key, unit: "", digits: 1, note: "追加データ" };
