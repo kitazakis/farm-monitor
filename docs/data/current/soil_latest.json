@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-07-14 06:02:06",
-  "soil_moisture_pct": 44.7,
-  "soil_temperature_c": 26.3,
-  "soil_ec_us_cm": 1285,
-  "soil_ph": 5.2
+  "timestamp": "2026-07-14 10:02:05",
+  "soil_moisture_pct": 44.5,
+  "soil_temperature_c": 25.7,
+  "soil_ec_us_cm": 1252,
+  "soil_ph": 4.9
 }
