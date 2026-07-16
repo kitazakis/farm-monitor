@@ -1,0 +1,6 @@
+timestamp,phase,bus_voltage_v,shunt_voltage_mv,current_a,power_w
+2026-07-16 13:16:33,before_power_on,15.1,-0.02,-0.0001,0.0
+2026-07-16 13:16:39,after_power_on,15.1,0.73,0.0075,0.114
+2026-07-16 13:16:39,after_sensor_read,15.096,0.81,0.0079,0.118
+2026-07-16 13:16:39,before_power_off,15.1,0.73,0.0073,0.112
+2026-07-16 13:16:40,after_power_off,15.1,-0.01,-0.0001,0.0
