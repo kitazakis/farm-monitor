@@ -1,8 +1,8 @@
 {
-  "timestamp": "2026-07-17 22:07:14",
+  "timestamp": "2026-07-21 13:04:05",
   "phase": "after_power_off",
-  "bus_voltage_v": 4.192,
-  "shunt_voltage_mv": -44.6,
-  "current_a": -0.446,
-  "power_w": 1.872
+  "bus_voltage_v": 4.004,
+  "shunt_voltage_mv": -134.78,
+  "current_a": -1.3425,
+  "power_w": 5.37
 }
