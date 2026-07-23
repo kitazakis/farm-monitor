@@ -71,6 +71,7 @@ async function init() {
     const latest = await fetchJson(PATHS.latest);
     state.latest = { ...state.latest, ...latest };
     renderLatest();
+    renderImageStatus();
     await Promise.all([loadMonthlyLog(latest), loadSoilData(), loadLatestImage()]);
     renderHarvestEstimator();
     setStatus("データ更新済み");
@@ -420,15 +421,35 @@ function renderBatteryInsight(rows) {
 async function loadLatestImage() {
   const image = document.getElementById("latestImage");
   const noImage = document.getElementById("noImage");
+  const cacheKey = state.latest.image_timestamp || state.latest.timestamp || Date.now();
 
   try {
     await testImage(PATHS.image);
-    image.src = `${PATHS.image}?v=${Date.now()}`;
+    image.src = `${PATHS.image}?v=${encodeURIComponent(cacheKey)}`;
     image.hidden = false;
     noImage.hidden = true;
   } catch (error) {
     image.hidden = true;
     noImage.hidden = false;
+  }
+}
+
+function renderImageStatus() {
+  const status = document.getElementById("imageStatus");
+  if (!status) return;
+
+  const cameraStatus = String(state.latest.camera_status || "").toLowerCase();
+  const imageTime = state.latest.image_timestamp || "";
+  const imageTimeText = formatImageTime(imageTime);
+  const failed = ["error", "failed", "fail", "ng"].includes(cameraStatus);
+
+  status.classList.toggle("warning", failed);
+  if (failed) {
+    status.textContent = `画像更新失敗 / 最終画像 ${imageTimeText}`;
+  } else if (imageTime) {
+    status.textContent = `画像更新: ${formatDateTime(imageTime)}`;
+  } else {
+    status.textContent = "画像更新: --";
   }
 }
 
@@ -708,6 +729,12 @@ function formatShortTime(value) {
   const date = parseTimestamp(value);
   if (!date) return value;
   return new Intl.DateTimeFormat("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function formatImageTime(value) {
+  const date = parseTimestamp(value);
+  if (!date) return "--";
+  return new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function transparent(hex) {

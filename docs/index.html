@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Farm Monitor</title>
-    <link rel="stylesheet" href="style.css?v=20260705-degree-day">
+    <link rel="stylesheet" href="style.css?v=20260723-camera-status">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-    <script src="app.js?v=20260705-harvest2" defer></script>
+    <script src="app.js?v=20260723-camera-status" defer></script>
     <script src="harvest-day.js?v=20260705-degree-day" defer></script>
   </head>
   <body>
@@ -78,7 +78,10 @@
         <article class="panel image-panel">
           <div class="panel-heading">
             <h2>最新画像</h2>
-            <p>docs/data/images/latest.jpg</p>
+            <div class="image-meta">
+              <p>docs/data/images/latest.jpg</p>
+              <p class="image-status" id="imageStatus">画像更新: --</p>
+            </div>
           </div>
           <div class="image-frame">
             <img id="latestImage" alt="農場の最新画像" hidden>

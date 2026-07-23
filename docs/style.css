@@ -104,6 +104,21 @@ h2 {
   font-size: 0.9rem;
 }
 
+.image-meta {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  text-align: right;
+}
+
+.image-status {
+  font-weight: 700;
+}
+
+.image-status.warning {
+  color: var(--amber);
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -361,6 +376,11 @@ h2 {
   .panel-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .image-meta {
+    justify-items: start;
+    text-align: left;
   }
 
   .metric-grid,
