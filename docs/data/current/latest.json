@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-07-29 10:00:05",
-  "temperature": 27.1,
-  "humidity": 81.3,
+  "timestamp": "2026-07-29 11:00:36",
+  "temperature": 27.0,
+  "humidity": 71.2,
   "battery": 82,
-  "rssi": -56,
+  "rssi": -55,
   "camera_status": "ok",
-  "image_timestamp": "2026-07-29 10:00:05"
+  "image_timestamp": "2026-07-29 11:00:36"
 }
